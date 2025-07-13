@@ -6,7 +6,8 @@ import time
 
 def qr_code_scanner():
     """
-    Initializes a GUI and camera to scan QR codes without displaying a live feed.
+    Initializes a GUI and camera to scan QR codes, downscaling the video to 
+    Full HD for faster processing without displaying a live feed.
     """
     # --- Initialize Tkinter Window ---
     root = tk.Tk()
@@ -21,27 +22,38 @@ def qr_code_scanner():
 
     # --- Initialize OpenCV Camera and Detector ---
     cap = cv2.VideoCapture(0)
+    
+    # Attempt to set camera resolution to Full HD
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+    
     if not cap.isOpened():
         print("Error: Could not open video stream.")
         root.destroy()
         return
 
     detector = cv2.QRCodeDetector()
-
     print("Starting QR code scanner... Press Ctrl+C to quit.")
 
     try:
         while True:
+            # Read a frame from the camera.
             ret, frame = cap.read()
             if not ret:
-                # If the camera disconnects or fails
                 print("Error: Failed to capture image. Retrying...")
                 time.sleep(2)
                 continue
             
+            # --- MODIFIED SECTION ---
+            # Downscale the frame to Full HD (1920x1080) for faster processing.
+            # INTER_AREA is the recommended interpolation for shrinking images.
+            processing_frame = cv2.resize(frame, (1920, 1080), interpolation=cv2.INTER_AREA)
+            # --- END MODIFIED SECTION ---
+            
             data, bbox = None, None
             try:
-                data, bbox, _ = detector.detectAndDecode(frame)
+                # Attempt to detect and decode the QR code in the downscaled frame.
+                data, bbox, _ = detector.detectAndDecode(processing_frame)
             except cv2.error as e:
                 print(f"OpenCV detection error: {e}")
                 continue
@@ -52,12 +64,13 @@ def qr_code_scanner():
                 
                 # Update Tkinter Text Area by replacing the content
                 text_area.configure(state='normal')
-                text_area.delete(1.0, tk.END)  # Clear the text area
-                text_area.insert(tk.END, data)     # Insert new data
+                text_area.delete(1.0, tk.END)  
+                text_area.insert(tk.END, data)     
                 text_area.configure(state='disabled')
                 
                 last_decoded_data = data
             
+            # Update the Tkinter window
             root.update_idletasks()
             root.update()
             
@@ -65,7 +78,6 @@ def qr_code_scanner():
             time.sleep(0.1)
 
     except KeyboardInterrupt:
-        # Handle the user pressing Ctrl+C.
         print("\nInterrupted by user. Shutting down.")
     
     finally:
@@ -73,7 +85,6 @@ def qr_code_scanner():
         print("Releasing resources...")
         cap.release()
         cv2.destroyAllWindows()
-        # Check if the root window exists before trying to destroy it
         if 'root' in locals() and root.winfo_exists():
             root.destroy()
         print("Scanner stopped.")
