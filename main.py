@@ -2,10 +2,11 @@ import cv2
 import numpy as np
 import tkinter as tk
 from tkinter import scrolledtext
+import time
 
 def qr_code_scanner():
     """
-    Initializes a GUI, camera, and QR scanner with robust exception handling.
+    Initializes a GUI and camera to scan QR codes without displaying a live feed.
     """
     # --- Initialize Tkinter Window ---
     root = tk.Tk()
@@ -26,58 +27,42 @@ def qr_code_scanner():
         return
 
     detector = cv2.QRCodeDetector()
-    print("Starting QR code scanner... Press 'q' or Ctrl+C to quit.")
+
+    print("Starting QR code scanner... Press Ctrl+C to quit.")
 
     try:
         while True:
-            # Read a frame from the camera.
             ret, frame = cap.read()
             if not ret:
-                print("Error: Failed to capture image. Exiting.")
-                break
+                # If the camera disconnects or fails
+                print("Error: Failed to capture image. Retrying...")
+                time.sleep(2)
+                continue
             
             data, bbox = None, None
             try:
-                # Attempt to detect and decode the QR code in the frame.
                 data, bbox, _ = detector.detectAndDecode(frame)
             except cv2.error as e:
-                # Catch and print OpenCV errors, then continue to the next frame.
                 print(f"OpenCV detection error: {e}")
                 continue
 
-            # If a QR code is detected.
-            if bbox is not None and data:
-                # If the decoded data is new, update the Tkinter text area.
-                if data != last_decoded_data:
-                    print(f"QR Code Detected: {data}")
-                    
-                    # --- MODIFIED SECTION ---
-                    # Update Tkinter Text Area by replacing the content
-                    text_area.configure(state='normal')
-                    text_area.delete(1.0, tk.END)  # Clear the text area
-                    text_area.insert(tk.END, data)     # Insert new data
-                    text_area.configure(state='disabled')
-                    # --- END MODIFIED SECTION ---
-                    
-                    last_decoded_data = data
-
-                # Draw the bounding box and display the data on the frame
-                points = bbox[0].astype(int)
-                cv2.polylines(frame, [points], isClosed=True, color=(0, 255, 0), thickness=2)
-                text_origin = tuple(points[0])
-                cv2.putText(frame, data, (text_origin[0], text_origin[1] - 10), cv2.FONT_HERSHEY_SIMPLEX,
-                            0.5, (0, 255, 0), 2)
-
-            # Display the camera feed.
-            cv2.imshow("QR Code Scanner", frame)
-
-            # Update the Tkinter window
+            # If a QR code is detected and the data is new.
+            if bbox is not None and data and data != last_decoded_data:
+                print(f"QR Code Detected: {data}")
+                
+                # Update Tkinter Text Area by replacing the content
+                text_area.configure(state='normal')
+                text_area.delete(1.0, tk.END)  # Clear the text area
+                text_area.insert(tk.END, data)     # Insert new data
+                text_area.configure(state='disabled')
+                
+                last_decoded_data = data
+            
             root.update_idletasks()
             root.update()
             
-            # Break the loop if 'q' is pressed.
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+            # Add a small delay to prevent high CPU usage
+            time.sleep(0.1)
 
     except KeyboardInterrupt:
         # Handle the user pressing Ctrl+C.
